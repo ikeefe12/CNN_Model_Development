@@ -3,15 +3,35 @@ from keras.models import load_model
 import numpy as np
 import cv2
 
+test_data_filename = 'first_floor_data.TXT'
+
 gray_16_images = np.zeros((5207, 84, 120))
 
 img_num = 0
-img_disp = 250
+img_disp = 0
 
 x_mouse = 0
 y_mouse = 0
 
-f_in = open('8_min_training_video.txt')
+f_in = open(test_data_filename)
+
+
+# this is the simple algorithm that the CNN must outperform in accuracy and or prediction time
+def find_center_of_heat(thermal_image, threshold=0.98):
+    # Find the maximum value in the image
+    max_val = np.max(thermal_image)
+    coordinates = []
+
+    # Iterate through all pixels in the image
+    for y in range(thermal_image.shape[0]):
+        for x in range(thermal_image.shape[1]):
+            # Check if the pixel is above the threshold
+            if thermal_image[y, x] >= threshold * max_val:
+                coordinates.append([x, y])
+    # calculate the center position
+    center_x = np.round(np.mean([i[0] for i in coordinates]))
+    center_y = np.round(np.mean([i[1] for i in coordinates]))
+    return center_x, center_y
 
 
 def read_images():
@@ -37,12 +57,12 @@ def mouse_events(event, x, y, flags, params):
         exit(0)
 
 
-min_train = 2657.0
-max_train = 2884.0
+min_train = 2636.0
+max_train = 2900.0
 
 # Load the model from the .h5 file
 model = load_model('cnn_model.h5')
-challenger_model = load_model('cnn_compare.h5')
+# challenger_model = load_model('cnn_compare.h5')
 
 # Load the training data from the .txt file
 read_images()
@@ -61,7 +81,10 @@ while 1:
     predic_data = predic_data.reshape(1, 120, 84, 1)
 
     [[x_curr, y_curr]] = model.predict(predic_data)
-    [[x_chall, y_chall]] = challenger_model.predict(predic_data)
+    # [[x_chall, y_chall]] = challenger_model.predict(predic_data)
+    [x_simp, y_simp] = find_center_of_heat(raw_image)
+    print(x_simp)
+    print(y_simp)
 
     gray8_image = np.zeros((84, 120), dtype=np.uint8)
     gray8_image = cv2.normalize(raw_image, gray8_image, 0, 255, cv2.NORM_MINMAX)
@@ -70,7 +93,7 @@ while 1:
     inferno_palette = cv2.applyColorMap(gray8_image, cv2.COLORMAP_INFERNO)
     cv2.circle(inferno_palette, (x_mouse, y_mouse), 2, (255, 255, 255), -1)
     cv2.circle(inferno_palette, (int(x_curr * 119), int(y_curr * 83)), 1, (0, 0, 0), -1)
-    cv2.circle(inferno_palette, (int(x_chall * 119), int(y_chall * 83)), 1, (255, 255, 255), -1)
+    cv2.circle(inferno_palette, (int(x_simp), int(y_simp)), 1, (255, 255, 255), -1)
     cv2.imshow("Inferno", inferno_palette)
     cv2.setMouseCallback('Inferno', mouse_events)
     cv2.waitKey(100)
