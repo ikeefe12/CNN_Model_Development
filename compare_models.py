@@ -3,12 +3,12 @@ from keras.models import load_model
 import numpy as np
 import cv2
 
-test_data_filename = 'first_floor_data.TXT'
+test_data_filename = '8_min_training_video.TXT'
 
 gray_16_images = np.zeros((5207, 84, 120))
 
 img_num = 0
-img_disp = 0
+img_disp = 250
 
 x_mouse = 0
 y_mouse = 0
@@ -32,6 +32,26 @@ def find_center_of_heat(thermal_image, threshold=0.98):
     center_x = np.round(np.mean([i[0] for i in coordinates]))
     center_y = np.round(np.mean([i[1] for i in coordinates]))
     return center_x, center_y
+
+
+def find_hottest_center(image):  # image in grey 8 scale
+    ret, thresh = cv2.threshold(image, 100, 255, 0)
+    contours, hierarchy = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    index = 0
+    max_avg_temp = 0
+    for i, cnt in enumerate(contours):
+        mask = np.zeros_like(image)
+        cv2.drawContours(mask, [cnt], -1, 255, -1)
+        avg_temp = np.mean(np.where(mask == 255, image, 0))
+        if avg_temp > max_avg_temp:
+            max_avg_temp = avg_temp
+            index = i
+    cnt = contours[index]
+    M = cv2.moments(cnt)
+    cX = int(M["m10"] / M["m00"])
+    cY = int(M["m01"] / M["m00"])
+    label = (cX, cY)
+    return label
 
 
 def read_images():
@@ -82,18 +102,17 @@ while 1:
 
     [[x_curr, y_curr]] = model.predict(predic_data)
     # [[x_chall, y_chall]] = challenger_model.predict(predic_data)
-    [x_simp, y_simp] = find_center_of_heat(raw_image)
-    print(x_simp)
-    print(y_simp)
+    # [x_simp, y_simp] = find_center_of_heat(raw_image)
 
     gray8_image = np.zeros((84, 120), dtype=np.uint8)
     gray8_image = cv2.normalize(raw_image, gray8_image, 0, 255, cv2.NORM_MINMAX)
     gray8_image = np.uint8(gray8_image)
+    [x_con, y_con] = find_hottest_center(gray8_image)
 
     inferno_palette = cv2.applyColorMap(gray8_image, cv2.COLORMAP_INFERNO)
     cv2.circle(inferno_palette, (x_mouse, y_mouse), 2, (255, 255, 255), -1)
     cv2.circle(inferno_palette, (int(x_curr * 119), int(y_curr * 83)), 1, (0, 0, 0), -1)
-    cv2.circle(inferno_palette, (int(x_simp), int(y_simp)), 1, (255, 255, 255), -1)
+    cv2.circle(inferno_palette, (int(x_con), int(y_con)), 1, (255, 255, 255), -1)
     cv2.imshow("Inferno", inferno_palette)
     cv2.setMouseCallback('Inferno', mouse_events)
     cv2.waitKey(100)
